@@ -4,6 +4,8 @@ Dit project wordt gecombineerd met het project *Gebruiksgericht Ontwerpen*. In d
 
 De lijst met benodigdheden kan teruggevonden worden in [Requirements](docs/Requirements.md).
 
+[Code](arduino/project/project.ino)
+
 ![arduino](imgs/OIP.jpg)
 
 ## Contributors
