@@ -1,148 +1,219 @@
-#include "DFRobotDFPlayerMini.h" // Library om de dfplayer mini aan te sturen
+#include "DFRobotDFPlayerMini.h"
 
-HardwareSerial mySerial(2); // Gebruik UART2 van de ESP32 voor communicatie, ook hoofdreden waarom ik esp heb gekocht
-DFRobotDFPlayerMini player;  // Maak een dfplayer object aan
+HardwareSerial mySerial(2);
+DFRobotDFPlayerMini player;
 
-// Dfplayer pins (verbinding tussen ESP32 en dfplayer)
-static const int PIN_MP3_TX = 17; // ESP32 transmitter naar dfplayer receiver
-static const int PIN_MP3_RX = 16; // ESP32 receiver → dfplayer transmitter (volgens forums zou uint8_t eigenlijk optimaler zijn omdat dat maar 8 bits geheugen nodig heeft ipv 32, maar anders weet ik nie wat dat doet.)
+// DFPlayer pins
+static const int PIN_MP3_TX = 17;
+static const int PIN_MP3_RX = 16;
 
-// Knoppen (pins op ESP32)
-const int BTN_PAUSE = 14; // knop voor pauze / hervatten
-const int BTN_LOOP  = 27; // knop voor loop aan/uit
-const int BTN_NEXT  = 26; // knop om naar andere track te gaan
-const int BTN_RESET = 25; // knop om track opnieuw te starten
+// Knoppen
+const int BTN_1 = 14; // Reset
+const int BTN_2 = 27; // Pauze / Loop-combo
+const int BTN_3 = 26; // Pauze / Loop-combo
+const int BTN_4 = 25; // Volgende track
 
-// LED 
-const int LED_PIN = 2; // toont loop status
+// LED
+const int LED_PIN = 2;
 
-// States (houden bij wat de huidige status is)
-bool isPaused = false;   // of de muziek gepauzeerd is
-bool isLooping = false;  // of looping aan staat
-int currentTrack = 1;    // welke track er aan het spele is
+// States
+bool isPaused     = false;
+bool isLooping    = false;
+int  currentTrack = 1;
 
-// Voor knopdetectie (om te zien of knop net is ingedrukt)
-bool lastPauseState = HIGH;
-bool lastLoopState  = HIGH;
-bool lastNextState  = HIGH;
-bool lastResetState = HIGH;
+// Vorige knoopstatus
+bool lastBtn1 = HIGH;
+bool lastBtn2 = HIGH;
+bool lastBtn3 = HIGH;
+bool lastBtn4 = HIGH;
+
+// Timing
+const unsigned long COMBO_WINDOW  = 80;  // ms tussen BTN_2 en BTN_3 om als combo te tellen
+const unsigned long COMBO_HOLD    = 900; // ms vasthouden voor loop-toggle
+const unsigned long DEBOUNCE_TIME = 250; // ms: minimale tijd tussen twee acties per knop
+
+// Debounce timestamps per knop
+unsigned long lastActionBtn1 = 0;
+unsigned long lastActionBtn2 = 0;
+unsigned long lastActionBtn3 = 0;
+unsigned long lastActionBtn4 = 0;
+
+// Pauze pending flags
+bool btn2Pending      = false;
+bool btn3Pending      = false;
+unsigned long btn2PressTime = 0;
+unsigned long btn3PressTime = 0;
+
+// Combo state
+bool comboActive      = false;
+unsigned long comboStartTime = 0;
 
 
 // ================= FUNCTIES =================
 
-// speel huidige track
+// Speelt de huidige track — respecteert of loop aan staat
 void playCurrentTrack() {
-  player.play(currentTrack); // speel track 1 of 2
-  isPaused = false;          // reset pause status
+  if (isLooping) {
+    player.loop(currentTrack); // DFPlayer herhaalt track zelf
+  } else {
+    player.play(currentTrack);
+  }
+  isPaused = false;
 }
 
-// restart huidige track
+// Reset: loop uit, track opnieuw starten
 void restartTrack() {
-  playCurrentTrack(); // gewoon opnieuw starten
+  isLooping = false;
+  digitalWrite(LED_PIN, LOW);
+  player.play(currentTrack); // gewoon spelen, geen loop
+  isPaused = false;
 }
 
-// pauze toggle functie
 void togglePause() {
   if (isPaused) {
-    player.start(); // hervatten
+    player.start();
     isPaused = false;
   } else {
-    player.pause(); // pauzeren
+    player.pause();
     isPaused = true;
   }
 }
 
-// loop toggle functie
+// Loop toggle: schakel DFPlayer native loop in of uit
 void toggleLoop() {
-  isLooping = !isLooping; // switch loop aan/uit
+  isLooping = !isLooping;
+  digitalWrite(LED_PIN, isLooping ? HIGH : LOW);
 
-  // LED aan/uit afhankelijk van loop status
-  digitalWrite(LED_PIN, isLooping ? HIGH : LOW); // als loop aan staat staat led aan en omgekeerd
+  if (isLooping) {
+    player.loop(currentTrack); // DFPlayer loopt track zelf, geen software detectie nodig
+  } else {
+    player.play(currentTrack); // Terug naar normaal afspelen
+  }
 }
 
-// switch track functie (1 naar 2 en dan 2 naar 1)
 void switchTrack() {
-  if (currentTrack == 1) {
-    currentTrack = 2; // ga naar track 2
-  } else {
-    currentTrack = 1; // ga terug naar track 1
-  }
-
-  playCurrentTrack(); // speel nieuwe track
+  currentTrack = (currentTrack == 1) ? 2 : 1;
+  playCurrentTrack(); // respecteert loop-status voor nieuwe track
 }
 
 
 // ================= SETUP =================
 void setup() {
-  mySerial.begin(9600, SERIAL_8N1, PIN_MP3_RX, PIN_MP3_TX); // start dfplayer communicatie (serial_8N1 is standaard volgens forums voor UART toepassingen.)
-
-  // knoppen als input met pull-up
-  pinMode(BTN_PAUSE, INPUT_PULLUP);
-  pinMode(BTN_LOOP, INPUT_PULLUP);
-  pinMode(BTN_NEXT, INPUT_PULLUP);
-  pinMode(BTN_RESET, INPUT_PULLUP);
-
-  // LED output
+  pinMode(BTN_1, INPUT_PULLUP);
+  pinMode(BTN_2, INPUT_PULLUP);
+  pinMode(BTN_3, INPUT_PULLUP);
+  pinMode(BTN_4, INPUT_PULLUP);
   pinMode(LED_PIN, OUTPUT);
 
-  // start dfplayer
+  mySerial.begin(9600, SERIAL_8N1, PIN_MP3_RX, PIN_MP3_TX);
+
+  delay(1000); // Wacht tot DFPlayer opgestart is
+
   if (player.begin(mySerial)) {
-    player.volume(10);   // volume instellen
-    playCurrentTrack();  // start eerste track
+    player.setTimeOut(500);
+    player.outputDevice(DFPLAYER_DEVICE_SD);
+    player.EQ(DFPLAYER_EQ_NORMAL);
+    player.volume(25); 
+    playCurrentTrack();
   }
 }
 
 
 // ================= LOOP =================
 void loop() {
+  unsigned long now = millis();
 
-  // ===== PAUSE KNOP =====
-  bool pauseState = digitalRead(BTN_PAUSE); // lees de status van de knop
+  bool btn1 = digitalRead(BTN_1);
+  bool btn2 = digitalRead(BTN_2);
+  bool btn3 = digitalRead(BTN_3);
+  bool btn4 = digitalRead(BTN_4);
 
-  if (pauseState == LOW && lastPauseState == HIGH) {
-    togglePause(); // pauzeren of hervatten (functie)
-    delay(200);    // debounce
+  // ===== Vallende flanken (knop net ingedrukt) =====
+  if (btn2 == LOW && lastBtn2 == HIGH) {
+    btn2Pending   = true;
+    btn2PressTime = now;
   }
-  lastPauseState = pauseState; // De laatste status is de nieuwe status
-
-  // ===== LOOP KNOP =====
-  bool loopState = digitalRead(BTN_LOOP); // lees status van de knop
-
-  if (loopState == LOW && lastLoopState == HIGH) {
-    toggleLoop(); // loop aan/uit + LED (funtie)
-    delay(200);
+  if (btn3 == LOW && lastBtn3 == HIGH) {
+    btn3Pending   = true;
+    btn3PressTime = now;
   }
-  lastLoopState = loopState; // De laatste status is de nieuwe status
 
-  // ===== NEXT TRACK (TOGGLE 1 ↔ 2) =====
-  bool nextState = digitalRead(BTN_NEXT); // lees de status van deknop
-
-  if (nextState == LOW && lastNextState == HIGH) {
-    switchTrack(); // wissel tussen track 1 en 2 (functie)
-    delay(200);
-  }
-  lastNextState = nextState; // De laatste status is de nieuwe status
-
-  // ===== RESET KNOP =====
-  bool resetState = digitalRead(BTN_RESET); // lees de status van de knop
-
-  if (resetState == LOW && lastResetState == HIGH) {
-    restartTrack(); // herstart huidige track (Functie)
-    delay(200);
-  }
-  lastResetState = resetState; // De laatste status is de nieuwe status
-
-  // ===== EINDE TRACK DETECTIE =====
-  if (player.available()) { // checkt of de dfplayer iets nieuws te melden heeft (vb. is de track gedaan met spelen)
-    int type = player.readType(); // lees welk type er gemeld is
-
-    if (type == DFPlayerPlayFinished) { // als track klaar is
-
-      if (isLooping) {
-        restartTrack(); // opnieuw starten bij loop
-      }
-
-      // anders: niets doen
+  // ===== Combo-detectie: BTN_2 + BTN_3 bijna tegelijk =====
+  if (btn2Pending && btn3Pending && !comboActive) {
+    unsigned long diff = (btn2PressTime > btn3PressTime)
+                         ? (btn2PressTime - btn3PressTime)
+                         : (btn3PressTime - btn2PressTime);
+    if (diff <= COMBO_WINDOW) {
+      comboActive    = true;
+      comboStartTime = (btn2PressTime > btn3PressTime) ? btn2PressTime : btn3PressTime;
+      btn2Pending    = false;
+      btn3Pending    = false;
     }
   }
+
+  // Ongeldige combo met BTN_1 of BTN_4: annuleer pending
+  if (btn2Pending && (btn1 == LOW || btn4 == LOW)) {
+    btn2Pending = false;
+  }
+  if (btn3Pending && (btn1 == LOW || btn4 == LOW)) {
+    btn3Pending = false;
+  }
+
+  // ===== Combo loslaten =====
+  if (comboActive && btn2 == HIGH && btn3 == HIGH) {
+    if ((now - comboStartTime >= COMBO_HOLD) && btn1 == HIGH && btn4 == HIGH) {
+      if (now - lastActionBtn2 > DEBOUNCE_TIME && now - lastActionBtn3 > DEBOUNCE_TIME) {
+        toggleLoop();
+        lastActionBtn2 = now;
+        lastActionBtn3 = now;
+      }
+    }
+    comboActive = false;
+  }
+
+  // ===== Stijgende flanken: enkelvoudige pauze =====
+  if (btn2 == HIGH && lastBtn2 == LOW) {
+    if (btn2Pending && !comboActive && btn1 == HIGH && btn3 == HIGH && btn4 == HIGH) {
+      if (now - lastActionBtn2 > DEBOUNCE_TIME) {
+        togglePause();
+        lastActionBtn2 = now;
+      }
+    }
+    btn2Pending = false;
+  }
+  if (btn3 == HIGH && lastBtn3 == LOW) {
+    if (btn3Pending && !comboActive && btn1 == HIGH && btn2 == HIGH && btn4 == HIGH) {
+      if (now - lastActionBtn3 > DEBOUNCE_TIME) {
+        togglePause();
+        lastActionBtn3 = now;
+      }
+    }
+    btn3Pending = false;
+  }
+
+  // ===== BTN_1: Reset =====
+  if (btn1 == LOW && lastBtn1 == HIGH) {
+    if (btn2 == HIGH && btn3 == HIGH && btn4 == HIGH) {
+      if (now - lastActionBtn1 > DEBOUNCE_TIME) {
+        restartTrack();
+        lastActionBtn1 = now;
+      }
+    }
+  }
+
+  // ===== BTN_4: Volgende track =====
+  if (btn4 == LOW && lastBtn4 == HIGH) {
+    if (btn1 == HIGH && btn2 == HIGH && btn3 == HIGH) {
+      if (now - lastActionBtn4 > DEBOUNCE_TIME) {
+        switchTrack();
+        lastActionBtn4 = now;
+      }
+    }
+  }
+
+  // Sla statussen op
+  lastBtn1 = btn1;
+  lastBtn2 = btn2;
+  lastBtn3 = btn3;
+  lastBtn4 = btn4;
 }
