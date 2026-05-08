@@ -139,7 +139,7 @@ void loop() {
   }
 
   // ===== Combo-detectie: BTN_2 + BTN_3 bijna tegelijk =====
-  if (btn2Pending && btn3Pending && !comboActive) {
+  if (btn2Pending && btn3Pending && !comboActive) { //deze code kijkt of knop 2 en knop 3 binnen een korte tijd van elkaar zijn ingedrukt. Als dat zo is, start hij een combo, slaat hij de starttijd op en voorkomt hij dat de twee knopdrukken ook nog apart worden verwerkt.
     unsigned long diff = (btn2PressTime > btn3PressTime)
                          ? (btn2PressTime - btn3PressTime)
                          : (btn3PressTime - btn2PressTime);
@@ -160,7 +160,7 @@ void loop() {
   }
 
   // ===== Combo loslaten =====
-  if (comboActive && btn2 == HIGH && btn3 == HIGH) {
+  if (comboActive && btn2 == HIGH && btn3 == HIGH) {  //Als de combo actief is, knop 2 en knop 3 nog steeds vastgehouden worden, ze lang genoeg zijn ingedrukt, knop 1 en knop 4 niet meedoen, én de debounce-tijd voorbij is, voer dan toggleLoop() uit en markeer knop 2 en knop 3 als net gebruikt.
     if ((now - comboStartTime >= COMBO_HOLD) && btn1 == HIGH && btn4 == HIGH) {
       if (now - lastActionBtn2 > DEBOUNCE_TIME && now - lastActionBtn3 > DEBOUNCE_TIME) {
         toggleLoop();
@@ -172,7 +172,7 @@ void loop() {
   }
 
   // ===== Stijgende flanken: enkelvoudige pauze =====
-  if (btn2 == HIGH && lastBtn2 == LOW) {
+  if (btn2 == HIGH && lastBtn2 == LOW) {  //Als knop 2 of knop 3 wordt losgelaten en die knop niet gebruikt is voor een combo, dan voert de code togglePause() uit. Maar alleen als de andere knoppen niet ingedrukt zijn en de debounce-tijd voorbij is.
     if (btn2Pending && !comboActive && btn1 == HIGH && btn3 == HIGH && btn4 == HIGH) {
       if (now - lastActionBtn2 > DEBOUNCE_TIME) {
         togglePause();
