@@ -10,6 +10,8 @@ Ten slotte worden de vier drukknoppen aangesloten. Eén zijde van elke knop word
 
 *De pinouts van de componenten vindt u door op de onderstreepte blauwe tekst te klikken.*
 
+![](/imgs/proto.jpeg)
+
 ## wiring diagrama
 ![](/imgs/ElektrischSchema.png)
 ![](/imgs/drawingschema.png)
