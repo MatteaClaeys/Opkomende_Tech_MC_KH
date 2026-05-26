@@ -8,9 +8,9 @@ De opbouw van het project staat beschreven in [Prototype](docs/fysiek_prototype.
 
 [De volledige code voor dit project is hier te vinden.](arduino/project/project.ino)
 
-[De code voor inputs te testen, hier te vinden.](arduino/project/test_inputs.ino)
+[De code voor inputs te testen, hier te vinden.](arduino/test_inputs/test_inputs.ino)
 
-[De code voor outputs te testen, hier te vinden.](arduino/project/test_outputs.ino)
+[De code voor outputs te testen, hier te vinden.](arduino/test_outputs/test_outputs.ino)
 
 
 ![Foto](/imgs/foto.jpeg)
