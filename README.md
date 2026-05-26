@@ -8,7 +8,7 @@ De opbouw van het project staat beschreven in [Prototype](docs/fysiek_prototype.
 
 [Code](arduino/project/project.ino)
 
-Foto komt hier nog
+![Foto](/img/foto.jpeg)
 
 ## Contributors
 - Mattea Claeys
