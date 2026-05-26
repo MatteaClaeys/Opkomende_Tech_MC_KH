@@ -6,7 +6,7 @@ De lijst met benodigdheden kan teruggevonden worden in [Requirements](docs/Requi
 
 De opbouw van het project staat beschreven in [Prototype](docs/fysiek_prototype.md).
 
-[Code](arduino/project/project.ino)
+[De volledige code voor dit project is hier te vinden.](arduino/project/project.ino)
 
 ![Foto](/imgs/foto.jpeg)
 
