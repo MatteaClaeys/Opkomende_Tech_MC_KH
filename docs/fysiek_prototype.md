@@ -1,6 +1,6 @@
 # Fysiek prototype
 
-De gebruikte microcontroller voor dit project is een [NodeMCU 32S](/imgs/nodemcu.jpg). Hierbij worden GPIO16 en GPIO17 gebruikt als seriële communicatiepinnen (RX en TX). Deze moeten kruislings verbonden worden met de TX- en RX-pinnen van de [DFPlayer Mini](/imgs/dfpin.png).
+De gebruikte microcontroller voor dit project is een [NodeMCU 32S](/imgs/nodemcu.jpg). Hierbij worden GPIO16 en GPIO17 gebruikt als seriële communicatiepinnen (UART) (RX en TX). Deze moeten kruislings verbonden worden met de TX- en RX-pinnen van de [DFPlayer Mini](/imgs/dfpin.png).
 
 Vervolgens wordt de 5V-pin van de microcontroller verbonden met de VCC-pin van de DFPlayer. Ook alle GND-aansluitingen moeten met elkaar verbonden worden om een gemeenschappelijke massa te creëren.
 
